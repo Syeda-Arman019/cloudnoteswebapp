@@ -21,12 +21,44 @@ CATEGORY_DESC_MAX = 160
 TAG_MAX_LEN = 24
 TAG_MAX_COUNT = 8
 VALID_SORTS = {"newest", "oldest", "updated"}
+FOLDER_NAME_MAX = 80
 
 
 def require_json_object(payload):
     if not isinstance(payload, dict):
         raise ApiError("Request body must be a JSON object.", 400)
     return payload
+
+
+def validate_folder_name(payload, *, partial=False):
+    """Validate folder create (full) or update (partial) data."""
+    data = {}
+    if not partial or "name" in payload:
+        name = " ".join(str(payload.get("name") or "").split())
+        if not name:
+            raise ApiError("A folder name is required.", 422, details={"field": "name"})
+        if len(name) < 1:
+            raise ApiError("A folder name is required.", 422, details={"field": "name"})
+        if len(name) > FOLDER_NAME_MAX:
+            raise ApiError(
+                f"Folder name must be {FOLDER_NAME_MAX} characters or fewer.",
+                422, details={"field": "name"},
+            )
+        data["name"] = name
+
+    if "parentId" in payload or "parent_id" in payload:
+        raw = payload.get("parentId", payload.get("parent_id"))
+        if raw in (None, ""):
+            data["parent_id"] = None
+        elif isinstance(raw, bool) or not isinstance(raw, (int, str, float)):
+            raise ApiError("Invalid parent folder.", 422, details={"field": "parentId"})
+        else:
+            try:
+                data["parent_id"] = int(raw)
+            except (TypeError, ValueError):
+                raise ApiError("Invalid parent folder.", 422, details={"field": "parentId"}) from None
+
+    return data
 
 
 def validate_email(value):
@@ -119,6 +151,18 @@ def validate_note_payload(payload, *, partial=False):
 
     if "isPinned" in payload:
         data["is_pinned"] = bool(payload.get("isPinned"))
+
+    if "folderId" in payload:
+        raw = payload.get("folderId")
+        if raw in (None, ""):
+            data["folder_id"] = None
+        elif isinstance(raw, bool) or not isinstance(raw, (int, str, float)):
+            raise ApiError("Invalid folder.", 422, details={"field": "folderId"})
+        else:
+            try:
+                data["folder_id"] = int(raw)
+            except (TypeError, ValueError):
+                raise ApiError("Invalid folder.", 422, details={"field": "folderId"}) from None
 
     if "tags" in payload:
         data["tags"] = validate_tags(payload.get("tags"))

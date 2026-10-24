@@ -10,7 +10,7 @@ from sqlalchemy import func, or_, select
 
 from app.errors import ApiError
 from app.extensions import db
-from app.models import Category, Note, Tag, note_tags
+from app.models import Category, Folder, Note, Tag, note_tags
 from app.validation import VALID_SORTS, require_json_object, validate_note_payload
 
 SORT_COLUMNS = {
@@ -36,6 +36,15 @@ def _resolve_category(user, category_id):
     if category is None or category.user_id != user.id:
         raise ApiError("Choose a valid category.", 422, details={"field": "categoryId"})
     return category
+
+
+def _resolve_folder(user, folder_id):
+    if folder_id is None:
+        return None
+    folder = db.session.get(Folder, folder_id)
+    if folder is None or folder.user_id != user.id:
+        raise ApiError("Choose a valid folder.", 422, details={"field": "folderId"})
+    return folder
 
 
 def _sync_tags(user, note, tag_names):
@@ -81,6 +90,15 @@ def list_notes(user, args):
         query = query.where(Note.is_pinned.is_(False))
     elif pinned not in {"", "all"}:
         raise ApiError("Invalid pinned filter.", 400)
+
+    folder = str(args.get("folder") or "").strip()
+    if folder == "none":
+        query = query.where(Note.folder_id.is_(None))
+    elif folder:
+        try:
+            query = query.where(Note.folder_id == int(folder))
+        except ValueError:
+            raise ApiError("Invalid folder filter.", 400) from None
 
     tag = str(args.get("tag") or "").strip().lstrip("#")
     if tag:
@@ -132,7 +150,14 @@ def get_owned_note(user, note_id):
 
 
 def get_note(user, note_id):
-    return _owned_note(user, note_id).serialize()
+    """Owner, or a member of the class the note is shared with (read-only
+    access — mutations still go through _owned_note)."""
+    from app.services.class_service import user_can_access_note
+
+    note = db.session.get(Note, note_id)
+    if note is None or not user_can_access_note(user, note):
+        raise ApiError("Note not found.", 404)
+    return note.serialize()
 
 
 def create_note(user, payload):
@@ -142,9 +167,11 @@ def create_note(user, payload):
         title=data["title"],
         content=data.get("content", ""),
         category_id=data.get("category_id"),
+        folder_id=data.get("folder_id"),
         is_pinned=data.get("is_pinned", False),
     )
     _resolve_category(user, data.get("category_id"))
+    _resolve_folder(user, data.get("folder_id"))
     _sync_tags(user, note, data.get("tags", []))
     db.session.add(note)
     db.session.commit()
@@ -160,6 +187,9 @@ def update_note(user, note_id, payload):
     if "category_id" in data:
         _resolve_category(user, data["category_id"])
         note.category_id = data["category_id"]
+    if "folder_id" in data:
+        _resolve_folder(user, data["folder_id"])
+        note.folder_id = data["folder_id"]
     if "title" in data:
         note.title = data["title"]
     if "content" in data:

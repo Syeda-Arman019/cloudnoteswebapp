@@ -109,9 +109,12 @@ session cookie, and note/export operations hit MySQL (or the dev SQLite file).
 ## 4. Tests and builds
 
 ```bash
-# Backend test suite (62 tests + 1 MySQL smoke test that skips without MYSQL_TEST_URL)
+# Backend test suite (195 tests + 1 MySQL smoke test that skips without MYSQL_TEST_URL)
 cd backend
 .venv/Scripts/python.exe -m pytest
+
+# Part 2 only (classes/invitations/permissions + chat/attachments)
+.venv/Scripts/python.exe -m pytest tests/test_classes.py tests/test_chat.py
 
 # Frontend production build
 npm run build            # → dist/
@@ -120,6 +123,26 @@ npm run preview          # serve the build → http://localhost:4173
 
 `pytest` never touches your development database: it creates its own private
 SQLite database per run (see `docs/database.md`).
+
+### Trying the Part 2 flows locally
+
+1. Register two accounts in two browser profiles (or one normal + one
+   incognito window) — each student uses their own account.
+2. Account A: **My classes → Create class** → **Class → Settings →
+   Invitations → Create invitation**, copy the one-time link.
+3. Account B: open the link (or **Join a class** and paste the code) →
+   confirm → the class appears in both class lists.
+4. Chat tab: send messages, reply, attach an image/document, try
+   *Record voice* (needs localhost or HTTPS for the microphone).
+5. Account A: upload a file in **All files** → ⋯ menu → **Share with
+   class**; it appears under the class **Materials** for members only.
+
+Applying schema changes (never reset the database):
+
+```bash
+cd backend
+.venv/Scripts/flask.exe db upgrade    # applies pending migrations (incl. Part 2)
+```
 
 ---
 

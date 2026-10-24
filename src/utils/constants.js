@@ -92,6 +92,8 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const STORAGE_KEYS = {
   THEME: 'cloudnotes.theme',
   NOTE_VIEW: 'cloudnotes.notesView',
+  LIBRARY_VIEW: 'cloudnotes.libraryView',
+  SIDEBAR_COLLAPSED: 'cloudnotes.sidebarCollapsed',
   DEMO_NOTES: 'cloudnotes.demo.notes',
   DEMO_CATEGORIES: 'cloudnotes.demo.categories',
   DEMO_USERS: 'cloudnotes.demo.users',

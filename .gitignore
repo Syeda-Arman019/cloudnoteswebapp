@@ -43,6 +43,9 @@ backend/.env
 *.sqlite3
 backend/instance/
 
+# Uploaded files (private store — never commit real user uploads)
+backend/uploads/
+
 # Python
 .venv/
 venv/

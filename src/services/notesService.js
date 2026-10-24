@@ -28,6 +28,11 @@ function normalizeNote(note) {
       note.categoryId == null || note.categoryId === ''
         ? null
         : String(note.categoryId),
+    folderId:
+      note.folderId == null || note.folderId === ''
+        ? null
+        : String(note.folderId),
+    folder: note.folder || null,
     tags: Array.isArray(note.tags) ? note.tags : [],
     isPinned: Boolean(note.isPinned ?? note.is_pinned),
     createdAt: note.createdAt || note.created_at,

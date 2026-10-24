@@ -144,6 +144,20 @@ def _init_security(app):
         max_attempts=app.config["LOGIN_RATE_LIMIT"],
         window_seconds=app.config["LOGIN_RATE_WINDOW"],
     )
+    # Part 2: per-user limiters for invitations/joins, chat sends and
+    # attachment uploads (single-process, same as the login limiter).
+    app.invite_limiter = SlidingWindowLimiter(
+        max_attempts=app.config.get("INVITE_RATE_LIMIT", 20),
+        window_seconds=app.config.get("INVITE_RATE_WINDOW", 3600),
+    )
+    app.message_limiter = SlidingWindowLimiter(
+        max_attempts=app.config.get("MESSAGE_RATE_LIMIT", 60),
+        window_seconds=app.config.get("MESSAGE_RATE_WINDOW", 60),
+    )
+    app.upload_limiter = SlidingWindowLimiter(
+        max_attempts=app.config.get("UPLOAD_RATE_LIMIT", 40),
+        window_seconds=app.config.get("UPLOAD_RATE_WINDOW", 60),
+    )
 
 
 def _register_cli(app):

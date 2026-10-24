@@ -17,6 +17,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+BASE_DIR = Path(__file__).resolve().parent
+
 # This module reads environment variables at import time (class-body
 # evaluation), so backend/.env must be loaded HERE — before the classes are
 # defined — or its values would be silently ignored. Real environment
@@ -67,13 +69,36 @@ class BaseConfig:
     LOGIN_RATE_LIMIT = int(os.environ.get("LOGIN_RATE_LIMIT", "10"))
     LOGIN_RATE_WINDOW = int(os.environ.get("LOGIN_RATE_WINDOW", "300"))
 
-    MAX_CONTENT_LENGTH = 1 * 1024 * 1024  # reject oversized JSON bodies (1 MiB)
+    # (MAX_CONTENT_LENGTH is defined below with the upload settings; JSON
+    # bodies remain bounded by validation limits — 40k chars per note.)
     JSON_SORT_KEYS = False
     PROPAGATE_EXCEPTIONS = False
 
     # Bound pagination defaults used by the notes API.
     NOTES_DEFAULT_PER_PAGE = 50
     NOTES_MAX_PER_PAGE = 100
+
+    # Uploads (Study Library): private directory outside any static folder,
+    # a per-file size cap, and a request ceiling that leaves headroom for
+    # multi-file batches. Overridable for tests via the environment.
+    UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER") or str(BASE_DIR / "uploads")
+    MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
+    MAX_CONTENT_LENGTH = int(
+        os.environ.get("MAX_REQUEST_MB", str(MAX_UPLOAD_MB * 4))
+    ) * 1024 * 1024
+
+    # Chat attachments (Part 2): per-kind caps enforced while streaming.
+    CHAT_MAX_IMAGE_MB = int(os.environ.get("CHAT_MAX_IMAGE_MB", "10"))
+    CHAT_MAX_DOC_MB = int(os.environ.get("CHAT_MAX_DOC_MB", "25"))
+    CHAT_MAX_AUDIO_MB = int(os.environ.get("CHAT_MAX_AUDIO_MB", "15"))
+
+    # Part 2 rate limits: (attempts, window seconds) per user/IP.
+    INVITE_RATE_LIMIT = int(os.environ.get("INVITE_RATE_LIMIT", "20"))
+    INVITE_RATE_WINDOW = int(os.environ.get("INVITE_RATE_WINDOW", "3600"))
+    MESSAGE_RATE_LIMIT = int(os.environ.get("MESSAGE_RATE_LIMIT", "60"))
+    MESSAGE_RATE_WINDOW = int(os.environ.get("MESSAGE_RATE_WINDOW", "60"))
+    UPLOAD_RATE_LIMIT = int(os.environ.get("UPLOAD_RATE_LIMIT", "40"))
+    UPLOAD_RATE_WINDOW = int(os.environ.get("UPLOAD_RATE_WINDOW", "60"))
 
 
 class DevelopmentConfig(BaseConfig):

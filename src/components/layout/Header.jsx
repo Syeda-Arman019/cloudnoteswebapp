@@ -1,13 +1,15 @@
 /**
- * Header — sticky top bar of the authenticated app: mobile menu trigger,
- * global search, theme toggle, and the user account menu.
+ * Header — sticky top bar: mobile menu trigger, global search (jumps to
+ * the combined Search page), Upload action (opens the global queue from
+ * anywhere), theme toggle, and the account menu.
  */
 
 import { useState } from 'react';
-import { LogOut, Menu, Moon, Search, Settings, Sun, UserRound } from 'lucide-react';
+import { LogOut, Menu, Moon, Search, Settings, Sun, Upload, UserRound } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useFilesStore } from '@/context/FilesContext';
 import { getInitials } from '@/utils/dates';
 import Dropdown from '@/components/common/Dropdown';
 import DemoBanner from '@/components/common/DemoBanner';
@@ -15,6 +17,7 @@ import DemoBanner from '@/components/common/DemoBanner';
 export default function Header({ onMenuClick }) {
   const { user, logout, isDemoMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { openUpload } = useFilesStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchValue, setSearchValue] = useState('');
@@ -24,14 +27,8 @@ export default function Header({ onMenuClick }) {
   const submitSearch = (event) => {
     event.preventDefault();
     const query = searchValue.trim();
-    const params = new URLSearchParams();
-    if (query) params.set('q', query);
-    // Jump to the notes view whenever a search is run from anywhere else.
-    if (location.pathname !== '/notes') {
-      navigate(`/notes${params.toString() ? `?${params}` : ''}`);
-    } else {
-      navigate(`/notes${params.toString() ? `?${params}` : ''}`, { replace: true });
-    }
+    const params = query ? `?q=${encodeURIComponent(query)}` : '';
+    navigate(`/search${params}`);
   };
 
   return (
@@ -51,10 +48,10 @@ export default function Header({ onMenuClick }) {
         <input
           type="search"
           className="form-control-cn"
-          placeholder="Search your notes…"
+          placeholder="Search notes and files…"
           value={searchValue}
           onChange={(event) => setSearchValue(event.target.value)}
-          aria-label="Search notes"
+          aria-label="Search notes and files"
         />
       </form>
 
@@ -67,6 +64,15 @@ export default function Header({ onMenuClick }) {
       <div className="header-spacer" />
 
       <div className="app-header-actions">
+        <button
+          type="button"
+          className="btn-cn btn-primary btn-sm header-upload-btn"
+          onClick={() => openUpload()}
+        >
+          <Upload size={15} aria-hidden="true" />
+          <span className="upload-btn-label">Upload</span>
+        </button>
+
         <button
           type="button"
           className="btn-icon"
@@ -90,9 +96,7 @@ export default function Header({ onMenuClick }) {
         >
           {({ close }) => (
             <>
-              <div className="dropdown-label-cn">
-                Signed in as {user?.email}
-              </div>
+              <div className="dropdown-label-cn">Signed in as {user?.email}</div>
               <button
                 type="button"
                 className="dropdown-item-cn"

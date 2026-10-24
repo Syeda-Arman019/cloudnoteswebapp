@@ -112,15 +112,105 @@ when a note's `tags` collection is replaced.
 users 1 ──* notes *──1 categories
 users 1 ──* categories
 users 1 ──* tags * ──* notes        (via note_tags)
+users 1 ──* folders *──1 folders    (self-referencing hierarchy)
+users 1 ──* study_files *──1 folders
+
+# Part 2 — class collaboration
+users 1 ──* study_classes          (owner_id; deleting a user removes their classes)
+users 1 ──* class_memberships *──1 study_classes
+users 1 ──* class_invitations      (created_by)
+users 1 ──* chat_messages          (sender_id)
+chat_messages 1 ──* chat_messages  (reply_to_id, ON DELETE SET NULL → tombstones survive)
+chat_messages 1 ──* chat_messages  (attachments, ON DELETE CASCADE)
+study_classes 1 ──* chat_*         (class_id; deleting a class removes its chat)
+notes/folders/study_files *──? study_classes  (shared_class_id, ON DELETE SET NULL
+                                               → sharing reverts to private, never public)
 ```
+
+---
+
+## Part 2 schema (classes, invitations, sharing, chat)
+
+Added by migration `436d22b6c72b_classes_memberships_invitations_chat_…`
+(additive only — existing users, notes, categories, tags, folders and files
+are untouched; verified by row counts before/after).
+
+### `study_classes`
+
+| Column | Notes |
+| ------ | ----- |
+| `id`, `owner_id` (FK users, CASCADE), `name` (≤120), `description` (≤400, default `""`) | |
+| `created_at`, `updated_at` | UTC, `onupdate` on edit |
+
+### `class_memberships`
+
+| Column | Notes |
+| ------ | ----- |
+| `class_id` (FK, CASCADE), `user_id` (FK, CASCADE) | **`UNIQUE (class_id, user_id)`** — duplicate active memberships are impossible even under concurrent joins |
+| `role` | `owner` \| `member` |
+| `last_read_at` | nullable; drives unread counts |
+| `joined_at` | |
+
+Indexes: `user_id`, `(class_id, role)`.
+
+### `class_invitations`
+
+| Column | Notes |
+| ------ | ----- |
+| `class_id` (FK, CASCADE), `created_by` (FK users, CASCADE) | |
+| `token_hash` | **SHA-256 of the raw token only** — the raw token exists solely in the one-time creation response |
+| `expires_at` | nullable (`NULL` = no expiry; 1 h–90 d enforced) |
+| `max_uses`, `use_count` | `max_uses NULL` = unlimited; status = active/expired/revoked/exhausted derived, never stored |
+| `revoked_at`, `created_at` | |
+
+Indexes: `token_hash`, `class_id`. The raw token or hash never appears in any
+API response after creation.
+
+### `chat_messages`
+
+| Column | Notes |
+| ------ | ----- |
+| `class_id` (FK, CASCADE), `sender_id` (FK users, CASCADE) | sender always from the session |
+| `reply_to_id` (FK self, **SET NULL**) | replies survive deletion of the target |
+| `content` (Text, default `""`), `is_deleted` (Boolean) | delete = tombstone: content cleared, row kept so replies/threads stay valid |
+| `edited_at`, `created_at`, `updated_at` | |
+
+Indexes: `(class_id, created_at)` (pagination), `sender_id`, `reply_to_id`.
+
+### `chat_attachments`
+
+| Column | Notes |
+| ------ | ----- |
+| `message_id` (FK, nullable, CASCADE) | `NULL` while pending upload; claimed by the message POST (validates class + uploader) |
+| `class_id` (FK, CASCADE) | **denormalized** so an attachment id from one class can never be served to another |
+| `uploader_id` (FK users, CASCADE) | |
+| `original_name` (≤255, sanitized metadata), `stored_name` (unique, random) | bytes live in the private `UPLOAD_FOLDER`, never a public static dir |
+| `mime_type`, `size_bytes`, `kind` | `kind` = `image` \| `document` \| `audio` |
+| `created_at` | |
+
+Indexes: `message_id`, `class_id`, `(message_id, created_at)` (orphan cleanup).
+
+### Sharing columns on existing tables
+
+`notes.shared_class_id`, `folders.shared_class_id`, `study_files.shared_class_id`
+— nullable FK → `study_classes.id` with **ON DELETE SET NULL**: deleting a class
+reverts shared resources to *private*, never public, and never deletes the
+owner's personal data.
 
 ---
 
 ## Migrations
 
 [Flask-Migrate](https://flask-migrate.readthedocs.io/) (Alembic) is wired into
-the app factory. The initial migration `7b34f7726b72_initial_schema…`
-creates the full schema above.
+the app factory. Migrations so far:
+
+1. `7b34f7726b72_initial_schema…` — users, categories, notes, tags, note_tags.
+2. `c9d4e2a71f05_study_library_folders_study_files…` — folders + files.
+3. `d8b3f60c92a4_notes_optional_folder_link…` — notes → folder link.
+4. `436d22b6c72b_classes_memberships_invitations_chat_…` — Part 2 (above).
+
+**Never reset the database to apply a migration** — run `flask db upgrade`;
+all Part 2 migrations are additive (new tables/columns only).
 
 ```bash
 cd backend

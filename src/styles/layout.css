@@ -351,7 +351,7 @@
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;
-  padding: 1.1rem 0.85rem;
+  padding: 1.1rem 0.85rem 1.35rem;
   display: flex;
   flex-direction: column;
   gap: 2.25rem;
@@ -431,7 +431,11 @@
   padding: 1rem 1.15rem;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  /* Content scrolls *under* this bar — the lift keeps the cutoff legible. */
+  box-shadow: 0 -8px 14px -12px rgba(11, 26, 51, 0.35);
+  background: var(--surface);
 }
+
 
 .sidebar-user {
   display: flex;
@@ -459,6 +463,80 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Sidebar collapse (desktop only) */
+.sidebar-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.sidebar-collapse-btn {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .sidebar-collapse-btn {
+    display: inline-flex;
+  }
+
+  .sidebar {
+    transition: transform var(--dur-slow) var(--ease), width var(--dur) var(--ease);
+  }
+
+  .sidebar.is-collapsed {
+    width: 74px;
+  }
+
+  .sidebar.is-collapsed .sidebar-head {
+    justify-content: center;
+    padding: 0 0.4rem;
+    gap: 0.2rem;
+  }
+
+  .sidebar.is-collapsed .brand {
+    padding: 0;
+    gap: 0;
+  }
+
+  .sidebar.is-collapsed .brand-text,
+  .sidebar.is-collapsed .nav-section-label,
+  .sidebar.is-collapsed .nav-label,
+  .sidebar.is-collapsed .nav-count,
+  .sidebar.is-collapsed .user-meta {
+    display: none;
+  }
+
+  .sidebar.is-collapsed .sidebar-nav {
+    padding: 1.1rem 0.55rem;
+    gap: 1.5rem;
+  }
+
+  .sidebar.is-collapsed .nav-list > li {
+    display: flex;
+    justify-content: center;
+  }
+
+  .sidebar.is-collapsed .nav-item-link {
+    justify-content: center;
+    padding: 0.6rem;
+    width: 42px;
+  }
+
+  .sidebar.is-collapsed .sidebar-foot {
+    padding: 0.9rem 0.55rem;
+  }
+
+  .sidebar.is-collapsed .sidebar-user {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .sidebar-is-collapsed .app-main {
+    margin-left: 74px;
+  }
 }
 
 /* Main column */
@@ -510,6 +588,27 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* Primary header action: never squeezed by the search field. */
+.header-upload-btn {
+  flex: 0 0 auto;
+}
+
+/* Keep the button's accessible name while collapsing it to an icon on
+   phones — the label stays in the accessibility tree, just not on screen. */
+@media (max-width: 575.98px) {
+  .header-upload-btn .upload-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 .header-user-chip {

@@ -1,16 +1,30 @@
 /**
  * AppLayout — the authenticated application shell.
+ *
  * One sidebar instance doubles as the mobile navigation drawer; CSS switches
- * between the two presentations at the responsive breakpoint.
+ * between the two presentations at the responsive breakpoint. The desktop
+ * sidebar can collapse to an icon rail (persisted in localStorage).
+ * The global UploadModal lives here so uploads keep running across routes.
  */
 
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
+import UploadModal from '@/components/library/UploadModal';
+import { STORAGE_KEYS } from '@/utils/constants';
+
+function getInitialCollapsed() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialCollapsed);
   const location = useLocation();
 
   // Close the mobile drawer whenever the route changes.
@@ -36,18 +50,26 @@ export default function AppLayout() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen]);
 
+  const toggleCollapse = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, next ? '1' : '0');
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  };
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${collapsed ? ' sidebar-is-collapsed' : ''}`}>
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
 
       {drawerOpen && (
-        <div
-          className="drawer-backdrop"
-          onClick={() => setDrawerOpen(false)}
-          role="presentation"
-        />
+        <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} role="presentation" />
       )}
 
       <Sidebar
@@ -55,6 +77,8 @@ export default function AppLayout() {
         isDrawer
         onClose={() => setDrawerOpen(false)}
         onNavigate={() => setDrawerOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapse}
       />
 
       <div className="app-main">
@@ -63,6 +87,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <UploadModal />
     </div>
   );
 }

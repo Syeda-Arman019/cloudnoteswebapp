@@ -128,6 +128,11 @@ code {
   padding: 0 1.5rem;
 }
 
+/* Narrow single-column variant for focused flows (join a class). */
+.page-container--narrow {
+  max-width: 780px;
+}
+
 @media (max-width: 575.98px) {
   .page-container {
     padding: 0 1rem;
@@ -193,4 +198,29 @@ code {
 .skip-link:focus {
   top: 1rem;
   color: #fff;
+}
+
+/* Typography polish — balanced headings, no orphaned last lines. */
+.page-title,
+.welcome-banner h1,
+.section-title {
+  text-wrap: balance;
+}
+
+.page-subtitle,
+.stat-label,
+.field-hint {
+  text-wrap: pretty;
+}
+
+/* Motion is decoration: honour the OS "reduce motion" setting everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

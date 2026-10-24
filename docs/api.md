@@ -176,6 +176,83 @@ Valid colors: `work`, `study`, `personal`, `ideas`, `projects`, `default`.
   markdown subset as styled paragraphs; TXT/Markdown pass the source through
   with a small header block.
 
+### Classes — `/classes` (Part 2)
+
+All class endpoints require a session. **Non-members get 404** for the class and
+everything under it (the API never confirms a class exists to outsiders);
+**owner-only actions get 403** for plain members. The actor/sender is always
+derived from the session — a client-supplied user id, role or membership flag
+is ignored.
+
+| Method | Path | Body / query | Response |
+| ------ | ---- | ------------ | -------- |
+| GET    | `/classes` | — | `{ classes: [{ id, name, description, ownerId, createdAt, memberCount, unreadCount, myRole, joinedAt }] }` — only the caller's classes |
+| POST   | `/classes` | `{ name, description? }` | **201** `{ class }` — caller becomes `owner` |
+| GET    | `/classes/:id` | — | `{ class }` with `myRole`, `memberCount`, `joinedAt` |
+| PATCH  | `/classes/:id` | `{ name?, description? }` | `{ class }` — owner only (403) |
+| DELETE | `/classes/:id` | — | **204** — owner only; members/invitations/chat removed, shared resources revert to private (SET NULL), personal files/notes are never deleted |
+| GET    | `/classes/:id/members` | — | `{ members: [{ role, joinedAt, lastReadAt, user: { id, fullName, initials }, isOnline }], onlineCount }` — members only |
+| DELETE | `/classes/:id/members/:userId` | — | **204** — owner only; removal revokes materials, chat and shared-resource access immediately |
+| POST   | `/classes/:id/leave` | — | `{ left: true }` — members may leave; the last owner cannot leave without transferring (409 `transfer_required`) |
+| POST   | `/classes/:id/transfer` | `{ memberId }` | `{ class }` — owner only; makes the target the new owner |
+
+### Invitations — `/classes/:id/invitations`, `/invitations/*`
+
+| Method | Path | Body / query | Response |
+| ------ | ---- | ------------ | -------- |
+| GET    | `/classes/:id/invitations` | — | `{ invitations: [{ id, status, expiresAt, maxUses, useCount, createdAt }] }` — **never includes the token or its hash**; owner only |
+| POST   | `/classes/:id/invitations` | `{ expiresInHours? (1–2160), maxUses? }` | **201** `{ invitation: { …, token } }` — **the raw token appears exactly once**, here; owner only; rate-limited (`INVITE_RATE_*`) |
+| DELETE | `/classes/:id/invitations/:invitationId` | — | `{ revoked: true }` — owner only; revocation is immediate |
+| GET    | `/invitations/preview?token=…` | — | `{ class: { id, name, description, ownerName }, expiresAt }` — safe details for the confirm screen; 404 for unknown/expired/revoked/exhausted tokens |
+| POST   | `/invitations/join` | `{ token }` | `{ class, membership }` — creates the membership for the **session's** user; re-joining an existing membership is a safe no-op (no duplicate row, unique constraint enforced) |
+
+Joining validates the invitation server-side (hash lookup, expiry, revocation,
+usage limit with atomic use counting) — an invitation never substitutes for
+authentication or authorization.
+
+### Sharing & materials — `/shares`, `/classes/:id/materials`
+
+| Method | Path | Body / query | Response |
+| ------ | ---- | ------------ | -------- |
+| POST   | `/shares` | `{ resourceType: file \| folder \| note, resourceId, classId }` | `{ shared: true, classId }` — resource must be **owned by the caller** and caller must be a member of `classId`; foreign resource → 404 (no existence leak) |
+| POST   | `/shares/unshare` | `{ resourceType, resourceId }` | `{ shared: false }` — owner of the resource only; access revokes on the next request |
+| GET    | `/classes/:id/shared?type=file` | `type` = `file` \| `folder` \| `note` | `{ resources }` — everything **the caller** shared with this class |
+| GET    | `/classes/:id/materials?q=` | optional search | `{ files, folders, notes }` — only resources shared **with this class**; members only; never exposes unshared personal data |
+
+Preview/download of a shared file re-checks membership on **every** request
+(`/files/:id/preview`, `/files/:id/download`): after unsharing, removal or
+leaving, the next request is 404.
+
+### Class chat — `/classes/:id/messages`, `/messages/:id`
+
+| Method | Path | Body / query | Response |
+| ------ | ---- | ------------ | -------- |
+| GET    | `/classes/:id/messages` | `?before=<id>&after=<id>&limit=≤40` | `{ messages: [...], hasMore }` — ascending by id/time; `after` powers the 4 s poll; members only |
+| POST   | `/classes/:id/messages` | `{ content?, replyToId?, attachmentIds? }` | **201** `{ message }` — `content` ≤ 4 000 chars; `senderId` from the session; `replyToId` must be a message of the **same class** (else 422); `attachmentIds` must be the caller's pending uploads for this class, each claimable once (409 on reuse) |
+| PATCH  | `/messages/:id` | `{ content }` | `{ message }` — sender only (others 404/403); sets `editedAt` |
+| DELETE | `/messages/:id` | — | **204** — sender or class owner (moderation); tombstones the row (`isDeleted`, content cleared) so replies and attachments stay consistent |
+
+Messages render as plain text in the UI (no HTML interpretation). Pagination
+is bounded (40 per page) — there is no unbounded history endpoint.
+
+### Chat attachments — `/classes/:id/attachments`, `/attachments/:id/*`
+
+| Method | Path | Body | Response |
+| ------ | ---- | ---- | -------- |
+| POST   | `/classes/:id/attachments` | `multipart/form-data`: `file`, `kind` = `image` \| `document` \| `audio` | **201** `{ attachment }` — extension + magic-byte content checks (browser MIME is not trusted), size limits `CHAT_MAX_IMAGE_MB` (10) / `CHAT_MAX_DOC_MB` (25) / `CHAT_MAX_AUDIO_MB` (15); `message_id` stays `NULL` until claimed by a message POST; rate-limited (`UPLOAD_RATE_*`) |
+| GET    | `/attachments/:id/content` | — | Inline bytes (`Content-Disposition: inline`, safe content type) — **current class members only**; the `class_id` is denormalized on the row, so an id from another class is 404 |
+| GET    | `/attachments/:id/download` | — | Attachment download (`Content-Disposition: attachment`, sanitized filename) — same membership check |
+
+Bytes live in the private `UPLOAD_FOLDER` (random stored name, no path
+traversal, never a public static directory).
+
+### Presence & read state — `/classes/:id/heartbeat`, `/classes/:id/read`
+
+| Method | Path | Response |
+| ------ | ---- | -------- |
+| POST   | `/classes/:id/heartbeat` | `{ onlineUserIds: [...], ttlSeconds: 90 }` — records an authenticated heartbeat; returns **unique** users with a heartbeat younger than 90 s (multiple tabs count once; stale entries are pruned). Single-process in-memory store — see the README limitations. |
+| POST   | `/classes/:id/read` | `{ unreadCount: 0 }` — sets `last_read_at` for the caller, which drives the sidebar unread badge |
+
 ---
 
 ## Validation rules (server-side, authoritative)
@@ -194,6 +271,13 @@ The frontend repeats these for instant feedback — the server never trusts it.
 | `color`      | one of the six allowed keys |
 | `name` (category) | required, 2–40 chars, unique per account (409) |
 | `description` (category) | ≤ 160 chars |
+| `name` (class) | required, ≤ 120 chars |
+| `description` (class) | ≤ 400 chars |
+| `expiresInHours` (invite) | 1–2 160 (90 days); `maxUses` ≥ 1 when given |
+| `content` (chat message) | optional when `attachmentIds` present, ≤ 4 000 chars |
+| `replyToId` (chat message) | must reference a message of the same class |
+| `resourceType` (share) | one of `file`, `folder`, `note`; resource must be owned by the caller |
+| chat upload | allowed extensions per kind with magic-byte checks; `image` ≤ 10 MB, `document` ≤ 25 MB, `audio` ≤ 15 MB |
 
 Request bodies must be JSON objects (otherwise **400** `Request body must be a
 JSON object.`), and payloads over 1 MiB are rejected with **413**.

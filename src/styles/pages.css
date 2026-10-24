@@ -330,6 +330,13 @@
   max-width: 340px;
 }
 
+/* The compact toolbar padding above would otherwise erase the icon gutter
+   (same specificity, later in the cascade) and the placeholder would run
+   straight into the magnifier. */
+.notes-toolbar .search-field .form-control-cn {
+  padding-left: 2.5rem;
+}
+
 .notes-count-label {
   font-size: 0.85rem;
   color: var(--text-muted);

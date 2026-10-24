@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useNotesStore } from '@/context/NotesContext';
+import { useFilesStore } from '@/context/FilesContext';
 import { useNotifications } from '@/context/NotificationContext';
 import { useDocumentTitle } from '@/hooks';
 import NoteEditorForm from '@/components/notes/NoteEditorForm';
@@ -20,6 +21,7 @@ export default function NoteEditorPage() {
   const navigate = useNavigate();
   const { getNote, createNote, updateNote, categories, isLoading, hasLoaded, error, reload } =
     useNotesStore();
+  const { folders } = useFilesStore();
   const { success, error: notifyError, info } = useNotifications();
   const [saving, setSaving] = useState(false);
 
@@ -110,6 +112,7 @@ export default function NoteEditorPage() {
       <NoteEditorForm
         note={isEditing ? note : null}
         categories={categories}
+        folders={folders}
         onSubmit={handleSubmit}
         onCancel={() => navigate(isEditing ? `/notes/${id}` : '/notes')}
         busy={saving}

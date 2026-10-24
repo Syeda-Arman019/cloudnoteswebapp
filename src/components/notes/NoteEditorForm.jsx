@@ -30,6 +30,7 @@ function buildInitialValues(note) {
     title: note?.title || '',
     content: note?.content || '',
     categoryId: note?.categoryId || '',
+    folderId: note?.folderId || '',
     tags: note?.tags ? [...note.tags] : [],
     isPinned: note?.isPinned || false,
   };
@@ -38,6 +39,7 @@ function buildInitialValues(note) {
 export default function NoteEditorForm({
   note = null,
   categories = [],
+  folders = [],
   onSubmit,
   onCancel,
   busy = false,
@@ -117,6 +119,7 @@ export default function NoteEditorForm({
       title: values.title.trim(),
       content: values.content,
       categoryId: values.categoryId || null,
+      folderId: values.folderId || null,
       tags: normalizeTags(values.tags),
       isPinned: values.isPinned,
     });
@@ -196,7 +199,7 @@ export default function NoteEditorForm({
         </div>
 
         <div className="editor-side">
-          <div className="card-cn card--pad" style={{ padding: '1.25rem' }}>
+          <div className="card-cn card-cn--pad">
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label className="form-label-cn" htmlFor="note-category">
                 Category
@@ -215,6 +218,27 @@ export default function NoteEditorForm({
                 ))}
               </select>
             </div>
+
+            {folders.length > 0 && (
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label-cn" htmlFor="note-folder">
+                  Study folder <span className="optional-tag">(optional)</span>
+                </label>
+                <select
+                  id="note-folder"
+                  className="form-control-cn"
+                  value={values.folderId}
+                  onChange={(event) => setValue('folderId', event.target.value)}
+                >
+                  <option value="">No folder</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <TagInput
               tags={values.tags}

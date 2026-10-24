@@ -17,11 +17,17 @@ def test_wrong_method_returns_json_405(client):
     assert response.get_json()["message"]
 
 
-def test_oversized_payload_rejected(client):
+def test_oversized_payload_rejected(client, app):
     register_user(client)
-    huge = "x" * (1024 * 1024 + 1024)
-    response = client.post("/api/notes", json={"title": "big", "content": huge})
-    assert response.status_code == 413
+    # The request ceiling is configurable (uploads need headroom), so pin it
+    # to the classic 1 MiB here to verify the 413 path itself.
+    app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
+    try:
+        huge = "x" * (1024 * 1024 + 1024)
+        response = client.post("/api/notes", json={"title": "big", "content": huge})
+        assert response.status_code == 413
+    finally:
+        app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 
 def test_no_stack_traces_leak_on_bad_input(client):
