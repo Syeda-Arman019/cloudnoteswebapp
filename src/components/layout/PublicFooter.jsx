@@ -78,7 +78,7 @@ export default function PublicFooter() {
 
         <div className="footer-bottom">
           <span>
-            © {year} {APP_NAME}. Built as a portfolio project.
+            © {year} {APP_NAME}. Designed &amp; Developed by Syeda Arman Shah.
           </span>
           <ThemeToggle withLabel />
         </div>
